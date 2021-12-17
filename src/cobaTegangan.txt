@@ -1,0 +1,75 @@
+// ini adalah kode untuk bang faisal.
+#include <Arduino.h>
+#include <WiFi.h>
+#include <Wire.h>
+#include <Firebase_ESP_Client.h>
+#include <LiquidCrystal_I2C.h>
+
+// ini adalah setiing lcd
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+// ini adalah setting untuk voltage sensor
+// nilai maksimal untuk voltage sensor adalah 25 volt
+// voltage sensor bekerja dengan cara yang sama dengan voltage divider
+const int voltageSensor = 34;
+float vOUT = 0.0;
+float vIN = 0.0;
+float R1 = 30000.0;
+float R2 = 7500.0;
+int value = 0;
+
+// ini setting awal untuk sensor arus
+const int sensorarus = 35;
+double Vout = 0;
+double Current = 0;
+const double scale_factor = 0.185; // 5A pilih salahsatu saja
+// const double scale_factor = 0.1; // 20A
+//const double scale_factor = 0.066; // 30A
+const double vRef = 5.0;
+const double resConvert = 4095;
+double resADC = vRef / resConvert;
+double zeroPoint = vRef / 2;
+
+void setup()
+{
+  // ini adalah inisiasi seting untuk lcd
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("PolTiGen V1.0");
+  delay(1000);
+}
+
+void loop()
+{
+  //kode sensor voltase.
+  // nilali 4.3 didapatkan dari trial dan error yang saya lakukan.
+  // harusnya nilai ini menggunakan nilai 5, karena votage refnya memang segitu.
+  // namun karena masalah resolusi, saya jadikan 4.3
+  value = analogRead(voltageSensor);
+  vOUT = (value * 4.3) / 4095.0;
+  vIN = vOUT / (R2 / (R1 + R2));
+  lcd.setCursor(0, 0);
+  lcd.print("volt= ");
+  lcd.print(vIN);
+  lcd.print("    ");
+
+  // ini adalah kode untuk sensor arus
+  // Vout is read 1000 Times for precision
+  for (int i = 0; i < 1000; i++)
+  {
+    Vout = (Vout + (resADC * analogRead(sensorarus)));
+    delay(1);
+  }
+  // Get Vout in mv
+  Vout = Vout / 1000;
+  // Convert Vout into Current using Scale Factor
+  Current = (Vout - zeroPoint) / scale_factor;
+  // Print Vout and Current to two Current = ");
+  lcd.setCursor(0, 1);
+  lcd.print("Amps= ");
+  lcd.print(Current, 2);
+  lcd.print("  ");
+
+  delay(1000);
+}

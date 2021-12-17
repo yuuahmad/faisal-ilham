@@ -1,234 +1,172 @@
 #include <Arduino.h>
 #include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+// include board
 #if defined(ESP32)
 #include <WiFi.h>
 #elif defined(ESP8266)
 #include <ESP8266WiFi.h>
 #endif
+
+// include firebase dan wifi
 #include <Firebase_ESP_Client.h>
-
-//Provide the token generation process info.
 #include <addons/TokenHelper.h>
-
-//Provide the RTDB payload printing info and other helper functions.
 #include <addons/RTDBHelper.h>
-
-/* 1. Define the WiFi credentials */
 #define WIFI_SSID "XZ3"
 #define WIFI_PASSWORD "qwertyuiop"
-
-//For the following credentials, see examples/Authentications/SignInAsUser/EmailPassword/EmailPassword.ino
-
-/* 2. Define the API Key */
 #define API_KEY "AIzaSyBsVj4YXqGT7PexdZ0QD1wK2UUjRtPk878"
-
-/* 3. Define the RTDB URL */
 #define DATABASE_URL "bangfaisal-1-default-rtdb.asia-southeast1.firebasedatabase.app" //<databaseName>.firebaseio.com or <databaseName>.<region>.firebasedatabase.app
-
-/* 4. Define the user Email and password that alreadey registerd or added in your project */
 #define USER_EMAIL "ahmadyusufmaulana0@gmail.com"
 #define USER_PASSWORD "yusuf1112"
 
 //Define Firebase Data object
 FirebaseData fbdo;
-
 FirebaseAuth auth;
 FirebaseConfig config;
-
 unsigned long sendDataPrevMillis = 0;
 
-unsigned long count = 0;
+// ini adalah setiing lcd
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+// ini adalah setting untuk voltage sensor
+// nilai maksimal untuk voltage sensor adalah 25 volt
+// voltage sensor bekerja dengan cara yang sama dengan voltage divider
+const int voltageSensor = 34;
+float vOUT1 = 0.0;
+float vIN1 = 0.0;
+float R1 = 30000.0;
+float R2 = 7500.0;
+int valuevoltage = 0;
+
+// settingan voltage sensor kedua
+const int voltageSensor2 = 35;
+float vOUT2 = 0.0;
+float vIN2 = 0.0;
+int valuevoltage2 = 0;
+
+// settingan relay
+const int relay1 = 2;
+const int relay2 = 4;
+
+// boolean untuk relay
+bool keadaanRelay1 = false;
+bool keadaanRelay2 = false;
+
+// ini settingan nilai tulis untuk lihat data
+int nilaitulis = 0;
 
 void setup()
 {
 
-  Serial.begin(115200);
+    Serial.begin(115200);
+    // ini adalah inisiasi seting untuk lcd
+    lcd.init();
+    lcd.backlight();
+    lcd.setCursor(0, 0);
+    lcd.print("polisi tidur    ");
+    lcd.setCursor(0, 1);
+    lcd.print("generator v1.0  ");
+    delay(5000);
 
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  Serial.print("Connecting to Wi-Fi");
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    Serial.print(".");
-    delay(300);
-  }
-  Serial.println();
-  Serial.print("Connected with IP: ");
-  Serial.println(WiFi.localIP());
-  Serial.println();
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    Serial.print("Connecting to Wi-Fi");
+    lcd.setCursor(0, 0);
+    lcd.print("connecting     ");
+    lcd.setCursor(0, 1);
+    lcd.print("               ");
+    delay(2000);
+    while (WiFi.status() != WL_CONNECTED)
+    {
+        Serial.print(".");
+        lcd.setCursor(0, 1);
+        lcd.print(".");
+        delay(2000);
+    }
+    Serial.println();
+    Serial.print("Connected with IP: ");
+    Serial.println(WiFi.localIP());
+    Serial.println();
+    lcd.setCursor(0, 0);
+    lcd.print("connected!?    ");
+    lcd.setCursor(0, 1);
+    lcd.print("IP:");
+    lcd.print(WiFi.localIP());
+    delay(1000);
 
-  Serial.printf("Firebase Client v%s\n\n", FIREBASE_CLIENT_VERSION);
+    Serial.printf("Firebase Client v%s\n\n", FIREBASE_CLIENT_VERSION);
 
-  /* Assign the api key (required) */
-  config.api_key = API_KEY;
+    config.api_key = API_KEY;
+    auth.user.email = USER_EMAIL;
+    auth.user.password = USER_PASSWORD;
+    config.database_url = DATABASE_URL;
+    config.token_status_callback = tokenStatusCallback; //see addons/TokenHelper.h
+    Firebase.begin(&config, &auth);
+    Firebase.reconnectWiFi(true);
+    Firebase.setDoubleDigits(5);
 
-  /* Assign the user sign in credentials */
-  auth.user.email = USER_EMAIL;
-  auth.user.password = USER_PASSWORD;
-
-  /* Assign the RTDB URL (required) */
-  config.database_url = DATABASE_URL;
-
-  /* Assign the callback function for the long running token generation task */
-  config.token_status_callback = tokenStatusCallback; //see addons/TokenHelper.h
-
-  //Or use legacy authenticate method
-  //config.database_url = DATABASE_URL;
-  //config.signer.tokens.legacy_token = "<database secret>";
-
-  //////////////////////////////////////////////////////////////////////////////////////////////
-  //Please make sure the device free Heap is not lower than 80 k for ESP32 and 10 k for ESP8266,
-  //otherwise the SSL connection will fail.
-  //////////////////////////////////////////////////////////////////////////////////////////////
-
-  Firebase.begin(&config, &auth);
-
-  //Comment or pass false value when WiFi reconnection will control by your code or third party library
-  Firebase.reconnectWiFi(true);
-
-  Firebase.setDoubleDigits(5);
-
-  /** Timeout options.
-
-  //WiFi reconnect timeout (interval) in ms (10 sec - 5 min) when WiFi disconnected.
-  config.timeout.wifiReconnect = 10 * 1000;
-
-  //Socket connection and SSL handshake timeout in ms (1 sec - 1 min).
-  config.timeout.socketConnection = 10 * 1000;
-
-  //Server response read timeout in ms (1 sec - 1 min).
-  config.timeout.serverResponse = 10 * 1000;
-
-  //RTDB Stream keep-alive timeout in ms (20 sec - 2 min) when no server's keep-alive event data received.
-  config.timeout.rtdbKeepAlive = 45 * 1000;
-
-  //RTDB Stream reconnect timeout (interval) in ms (1 sec - 1 min) when RTDB Stream closed and want to resume.
-  config.timeout.rtdbStreamReconnect = 1 * 1000;
-
-  //RTDB Stream error notification timeout (interval) in ms (3 sec - 30 sec). It determines how often the readStream
-  //will return false (error) when it called repeatedly in loop.
-  config.timeout.rtdbStreamError = 3 * 1000;
-
-  Note:
-  The function that starting the new TCP session i.e. first time server connection or previous session was closed, the function won't exit until the 
-  time of config.timeout.socketConnection.
-
-  You can also set the TCP data sending retry with
-  config.tcp_data_sending_retry = 1;
-
-  */
+    // setting inisiasi relay
+    pinMode(relay1, OUTPUT);
+    pinMode(relay2, OUTPUT);
 }
 
 void loop()
 {
-  //Flash string (PROGMEM and FPSTR), Arduino String, C++ string, const char, char array, string literal are supported
-  //in all Firebase and FirebaseJson functions, unless F() macro is not supported.
+    //kode sensor voltase.
+    // nilali 4.3 didapatkan dari trial dan error yang saya lakukan.
+    // harusnya nilai ini menggunakan nilai 5, karena votage refnya memang segitu.
+    // namun karena masalah resolusi, saya jadikan 4.3
+    valuevoltage = analogRead(voltageSensor);
+    vOUT1 = (valuevoltage * 4.3) / 4095.0;
+    vIN1 = vOUT1 / (R2 / (R1 + R2));
+    lcd.setCursor(0, 0);
+    lcd.print("volt1= ");
+    lcd.print(vIN1, 2);
+    lcd.print("      ");
 
-  if (Firebase.ready() && (millis() - sendDataPrevMillis > 15000 || sendDataPrevMillis == 0))
-  {
-    sendDataPrevMillis = millis();
+    // kode sensor voltase kedua
+    valuevoltage2 = analogRead(voltageSensor2);
+    vOUT2 = (valuevoltage2 * 4.3) / 4095.0;
+    vIN2 = vOUT2 / (R2 / (R1 + R2));
+    lcd.setCursor(0, 1);
+    lcd.print("volt2= ");
+    lcd.print(vIN2, 2);
+    lcd.print("      ");
 
-    Serial.printf("Set bool... %s\n", Firebase.RTDB.setBool(&fbdo, "/test/bool", count % 2 == 0) ? "ok" : fbdo.errorReason().c_str());
-
-    Serial.printf("Get bool... %s\n", Firebase.RTDB.getBool(&fbdo, "/test/bool") ? fbdo.to<bool>() ? "true" : "false" : fbdo.errorReason().c_str());
-
-    bool bVal;
-    Serial.printf("Get bool ref... %s\n", Firebase.RTDB.getBool(&fbdo, "/test/bool", &bVal) ? bVal ? "true" : "false" : fbdo.errorReason().c_str());
-
-    Serial.printf("Set int... %s\n", Firebase.RTDB.setInt(&fbdo, "/test/int", count) ? "ok" : fbdo.errorReason().c_str());
-
-    Serial.printf("Get int... %s\n", Firebase.RTDB.getInt(&fbdo, "/test/int") ? String(fbdo.to<int>()).c_str() : fbdo.errorReason().c_str());
-
-    int iVal = 0;
-    Serial.printf("Get int ref... %s\n", Firebase.RTDB.getInt(&fbdo, "/test/int", &iVal) ? String(iVal).c_str() : fbdo.errorReason().c_str());
-
-    Serial.printf("Set float... %s\n", Firebase.RTDB.setFloat(&fbdo, "/test/float", count + 10.2) ? "ok" : fbdo.errorReason().c_str());
-
-    Serial.printf("Get float... %s\n", Firebase.RTDB.getFloat(&fbdo, "/test/float") ? String(fbdo.to<float>()).c_str() : fbdo.errorReason().c_str());
-
-    Serial.printf("Set double... %s\n", Firebase.RTDB.setDouble(&fbdo, "/test/double", count + 35.517549723765) ? "ok" : fbdo.errorReason().c_str());
-
-    Serial.printf("Get double... %s\n", Firebase.RTDB.getDouble(&fbdo, "/test/double") ? String(fbdo.to<double>()).c_str() : fbdo.errorReason().c_str());
-
-    Serial.printf("Set string... %s\n", Firebase.RTDB.setString(&fbdo, "/test/string", "Hello World!") ? "ok" : fbdo.errorReason().c_str());
-
-    Serial.printf("Get string... %s\n", Firebase.RTDB.getString(&fbdo, "/test/string") ? fbdo.to<const char *>() : fbdo.errorReason().c_str());
-
-    //For the usage of FirebaseJson, see examples/FirebaseJson/BasicUsage/Create.ino
-    FirebaseJson json;
-
-    if (count == 0)
+    if (vIN1 > 3)
     {
-      json.set("value/round/" + String(count), "cool!");
-      json.set("vaue/ts/.sv", "timestamp");
-      Serial.printf("Set json... %s\n", Firebase.RTDB.set(&fbdo, "/test/json", &json) ? "ok" : fbdo.errorReason().c_str());
+        digitalWrite(relay1, HIGH);
+        keadaanRelay1 = true;
     }
     else
     {
-      json.add(String(count), "smart!");
-      Serial.printf("Update node... %s\n", Firebase.RTDB.updateNode(&fbdo, "/test/json/value/round", &json) ? "ok" : fbdo.errorReason().c_str());
+        digitalWrite(relay1, LOW);
+        keadaanRelay1 = false;
     }
 
-    Serial.println();
+    if (vIN2 > 3)
+    {
+        digitalWrite(relay2, HIGH);
+        keadaanRelay2 = true;
+    }
+    else
+    {
+        digitalWrite(relay2, LOW);
+        keadaanRelay2 = false;
+    }
 
-    //For generic set/get functions.
-
-    //For generic set, use Firebase.RTDB.set(&fbdo, <path>, <any variable or value>)
-
-    //For generic get, use Firebase.RTDB.get(&fbdo, <path>).
-    //And check its type with fbdo.dataType() or fbdo.dataTypeEnum() and
-    //cast the value from it e.g. fbdo.to<int>(), fbdo.to<std::string>().
-
-    //The function, fbdo.dataType() returns types String e.g. string, boolean,
-    //int, float, double, json, array, blob, file and null.
-
-    //The function, fbdo.dataTypeEnum() returns type enum (number) e.g. fb_esp_rtdb_data_type_null (1),
-    //fb_esp_rtdb_data_type_integer, fb_esp_rtdb_data_type_float, fb_esp_rtdb_data_type_double,
-    //fb_esp_rtdb_data_type_boolean, fb_esp_rtdb_data_type_string, fb_esp_rtdb_data_type_json,
-    //fb_esp_rtdb_data_type_array, fb_esp_rtdb_data_type_blob, and fb_esp_rtdb_data_type_file (10)
-
-    count++;
-  }
+    // ini kode untuk upload kode ke firebase
+    if (Firebase.ready() && (millis() - sendDataPrevMillis > 4000 || sendDataPrevMillis == 0))
+    {
+        sendDataPrevMillis = millis();
+        Firebase.RTDB.setFloat(&fbdo, "/voltage1", vIN1);
+        Firebase.RTDB.setFloat(&fbdo, "/voltage2", vIN2);
+        Firebase.RTDB.setBool(&fbdo, "/keadaanRelay1", keadaanRelay1);
+        Firebase.RTDB.setBool(&fbdo, "/keadaanRelay2", keadaanRelay2);
+        Serial.print("Selesai Tulis");
+        Serial.print(nilaitulis);
+        Serial.println();
+        nilaitulis++;
+        delay(1000);
+    }
 }
-
-/// PLEASE AVOID THIS ////
-
-//Please avoid the following inappropriate and inefficient use cases
-/**
- * 
- * 1. Call get repeatedly inside the loop without the appropriate timing for execution provided e.g. millis() or conditional checking,
- * where delay should be avoided.
- * 
- * Everytime get was called, the request header need to be sent to server which its size depends on the authentication method used, 
- * and costs your data usage.
- * 
- * Please use stream function instead for this use case.
- * 
- * 2. Using the single FirebaseData object to call different type functions as above example without the appropriate 
- * timing for execution provided in the loop i.e., repeatedly switching call between get and set functions.
- * 
- * In addition to costs the data usage, the delay will be involved as the session needs to be closed and opened too often
- * due to the HTTP method (GET, PUT, POST, PATCH and DELETE) was changed in the incoming request. 
- * 
- * 
- * Please reduce the use of swithing calls by store the multiple values to the JSON object and store it once on the database.
- * 
- * Or calling continuously "set" or "setAsync" functions without "get" called in between, and calling get continuously without set 
- * called in between.
- * 
- * If you needed to call arbitrary "get" and "set" based on condition or event, use another FirebaseData object to avoid the session 
- * closing and reopening.
- * 
- * 3. Use of delay or hidden delay or blocking operation to wait for hardware ready in the third party sensor libraries, together with stream functions e.g. Firebase.RTDB.readStream and fbdo.streamAvailable in the loop.
- * 
- * Please use non-blocking mode of sensor libraries (if available) or use millis instead of delay in your code.
- * 
- * 4. Blocking the token generation process.
- * 
- * Let the authentication token generation to run without blocking, the following code MUST BE AVOIDED.
- * 
- * while (!Firebase.ready()) <---- Don't do this in while loop
- * {
- *     delay(1000);
- * }
- * 
- */

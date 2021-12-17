@@ -1,0 +1,169 @@
+// ini adalah kode untuk bang faisal.
+#include <Arduino.h>
+#include <WiFi.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <FirebaseESP32.h>
+
+// ini adalah settingan firebase
+#include <addons/TokenHelper.h>
+#include <addons/RTDBHelper.h>
+#define WIFI_SSID "XZ3"
+#define WIFI_PASSWORD "qwertyuiop"
+#define API_KEY "AIzaSyBsVj4YXqGT7PexdZ0QD1wK2UUjRtPk878"
+#define DATABASE_URL "bangfaisal-1-default-rtdb.asia-southeast1.firebasedatabase.app" //<databaseName>.firebaseio.com or <databaseName>.<region>.firebasedatabase.app
+#define USER_EMAIL "ahmadyusufmaulana0@gmail.com"
+#define USER_PASSWORD "yusuf1112"
+
+unsigned long sendDataPrevMillis = 0;
+
+// settingan firebase variabel awalnya
+FirebaseData fbdo;
+FirebaseData stream;
+FirebaseAuth auth;
+FirebaseConfig config;
+
+// ini adalah setiing lcd
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+// ini adalah setting untuk voltage sensor
+// nilai maksimal untuk voltage sensor adalah 25 volt
+// voltage sensor bekerja dengan cara yang sama dengan voltage divider
+const int voltageSensor = 34;
+float vOUT1 = 0.0;
+float vIN1 = 0.0;
+float R1 = 30000.0;
+float R2 = 7500.0;
+int valuevoltage = 0;
+
+// settingan voltage sensor kedua
+const int voltageSensor2 = 35;
+float vOUT2 = 0.0;
+float vIN2 = 0.0;
+int valuevoltage2 = 0;
+
+// settingan relay
+const int relay1 = 2;
+const int relay2 = 4;
+
+// boolean untuk relay
+bool keadaanRelay1 = false;
+bool keadaanRelay2 = false;
+
+void streamCallback(StreamData data)
+{
+  Serial.printf("sream path, %s\nevent path, %s\ndata type, %s\nevent type, %s\n\n",
+                data.streamPath().c_str(),
+                data.dataPath().c_str(),
+                data.dataType().c_str(),
+                data.eventType().c_str());
+  printResult(data); //see addons/RTDBHelper.h
+  Serial.println();
+  Serial.printf("Received stream payload size: %d (Max. %d)\n\n", data.payloadLength(), data.maxPayloadLength());
+}
+
+void streamTimeoutCallback(bool timeout)
+{
+  if (timeout)
+    Serial.println("stream timed out, resuming...\n");
+  if (!stream.httpConnected())
+    Serial.printf("error code: %d, reason: %s\n\n", stream.httpCode(), stream.errorReason().c_str());
+}
+
+void setup()
+{
+  // serial monitor
+  Serial.begin(115200);
+
+  // ini adalah inisiasi seting untuk lcd
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("PolTiGen V1.0");
+  delay(1000);
+
+  // settingan internet
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  Serial.print("Connecting to Wi-Fi");
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    Serial.print(".");
+    delay(300);
+  }
+  Serial.println();
+  Serial.print("Connected with IP: ");
+  Serial.println(WiFi.localIP());
+  Serial.println();
+  Serial.printf("Firebase Client v%s\n\n", FIREBASE_CLIENT_VERSION);
+  /* Assign value (required) */
+  config.api_key = API_KEY;
+  auth.user.email = USER_EMAIL;
+  auth.user.password = USER_PASSWORD;
+  config.database_url = DATABASE_URL;
+  config.token_status_callback = tokenStatusCallback; //see addons/TokenHelper.h
+  Firebase.begin(&config, &auth);
+  //Comment or pass false value when WiFi reconnection will control by your code or third party library
+  Firebase.reconnectWiFi(true);
+  Firebase.setDoubleDigits(5);
+
+  // setting inisiasi relay
+  pinMode(relay1, OUTPUT);
+  pinMode(relay2, OUTPUT);
+}
+
+void loop()
+{
+
+  //kode sensor voltase.
+  // nilali 4.3 didapatkan dari trial dan error yang saya lakukan.
+  // harusnya nilai ini menggunakan nilai 5, karena votage refnya memang segitu.
+  // namun karena masalah resolusi, saya jadikan 4.3
+  valuevoltage = analogRead(voltageSensor);
+  vOUT1 = (valuevoltage * 4.3) / 4095.0;
+  vIN1 = vOUT1 / (R2 / (R1 + R2));
+  lcd.setCursor(0, 0);
+  lcd.print("volt1= ");
+  lcd.print(vIN1, 2);
+  lcd.print("    ");
+
+  // kode sensor voltase kedua
+  valuevoltage2 = analogRead(voltageSensor2);
+  vOUT2 = (valuevoltage2 * 4.3) / 4095.0;
+  vIN2 = vOUT2 / (R2 / (R1 + R2));
+  lcd.setCursor(0, 1);
+  lcd.print("volt2= ");
+  lcd.print(vIN2, 2);
+  lcd.print("    ");
+
+  if (vIN1 > 5)
+  {
+    digitalWrite(relay1, HIGH);
+    keadaanRelay1 = true;
+  }
+  else
+  {
+    digitalWrite(relay1, LOW);
+    keadaanRelay1 = false;
+  }
+
+  if (vIN2 > 5)
+  {
+    digitalWrite(relay2, HIGH);
+    keadaanRelay2 = true;
+  }
+  else
+  {
+    digitalWrite(relay2, LOW);
+    keadaanRelay2 = false;
+  }
+
+  if (Firebase.ready() && (millis() - sendDataPrevMillis > 15000 || sendDataPrevMillis == 0))
+  {
+    sendDataPrevMillis = millis();
+    Serial.printf(Firebase.RTDB.setFloat(&fbdo, "/voltage1", vIN1) ? "ok1\n" : fbdo.errorReason().c_str());
+    Serial.printf(Firebase.RTDB.setFloat(&fbdo, "/voltage2", vIN2) ? "ok2\n" : fbdo.errorReason().c_str());
+    Serial.printf(Firebase.RTDB.setBool(&fbdo, "/keadaanRelay1", keadaanRelay1) ? "ok3\n" : fbdo.errorReason().c_str());
+    Serial.printf(Firebase.RTDB.setBool(&fbdo, "/keadaanRelay2", keadaanRelay2) ? "ok4\n" : fbdo.errorReason().c_str());
+  }
+  delay(200);
+}
