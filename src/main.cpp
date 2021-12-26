@@ -14,7 +14,7 @@
 #include <addons/TokenHelper.h>
 #include <addons/RTDBHelper.h>
 #define WIFI_SSID "XZ3"
-#define WIFI_PASSWORD "qwertyuiop"
+#define WIFI_PASSWORD ""
 #define API_KEY "AIzaSyBsVj4YXqGT7PexdZ0QD1wK2UUjRtPk878"
 #define DATABASE_URL "bangfaisal-1-default-rtdb.asia-southeast1.firebasedatabase.app" //<databaseName>.firebaseio.com or <databaseName>.<region>.firebasedatabase.app
 #define USER_EMAIL "ahmadyusufmaulana0@gmail.com"
@@ -32,7 +32,7 @@ LiquidCrystal_I2C lcd(0x27, 16, 2);
 // ini adalah setting untuk voltage sensor
 // nilai maksimal untuk voltage sensor adalah 25 volt
 // voltage sensor bekerja dengan cara yang sama dengan voltage divider
-const int voltageSensor = 34;
+const int voltageSensor = 33;
 float vOUT1 = 0.0;
 float vIN1 = 0.0;
 float R1 = 30000.0;
@@ -40,7 +40,7 @@ float R2 = 7500.0;
 int valuevoltage = 0;
 
 // settingan voltage sensor kedua
-const int voltageSensor2 = 35;
+const int voltageSensor2 = 32;
 float vOUT2 = 0.0;
 float vIN2 = 0.0;
 int valuevoltage2 = 0;
@@ -167,6 +167,5 @@ void loop()
         Serial.print(nilaitulis);
         Serial.println();
         nilaitulis++;
-        delay(1000);
     }
 }

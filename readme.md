@@ -10,6 +10,9 @@ projek yang saya buat ini saya open source-kan karena saya ingin orang-orang di 
 
 gunakan PIO yang ada di vs code untuk memulai melakukan percobaan dengan code saya ini
 
+## letak kodingan final
+letak kodignan fianl ada di src/main.cpp
+
 ```bash
 pip install foobar
 ```
