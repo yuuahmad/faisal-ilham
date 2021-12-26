@@ -13,8 +13,8 @@
 #include <Firebase_ESP_Client.h>
 #include <addons/TokenHelper.h>
 #include <addons/RTDBHelper.h>
-#define WIFI_SSID "XZ3"
-#define WIFI_PASSWORD ""
+#define WIFI_SSID "XZ3"          // ini adalah nama wifi
+#define WIFI_PASSWORD "12345678" // dan ini adalah passwordnya. kosongkan bagian ini kalau tidak pakai password
 #define API_KEY "AIzaSyBsVj4YXqGT7PexdZ0QD1wK2UUjRtPk878"
 #define DATABASE_URL "bangfaisal-1-default-rtdb.asia-southeast1.firebasedatabase.app" //<databaseName>.firebaseio.com or <databaseName>.<region>.firebasedatabase.app
 #define USER_EMAIL "ahmadyusufmaulana0@gmail.com"
