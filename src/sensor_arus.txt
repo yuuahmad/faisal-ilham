@@ -1,0 +1,58 @@
+#include <Arduino.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <SPIFFS.h>
+#include <SD.h>
+#include <WiFiClientSecure.h>
+#include <Update.h>
+#include <ACS712.h>
+
+ACS712 sensor_arus(ACS712_05B,34);
+ACS712 sensor_arus_2(ACS712_20A, 35);
+
+// include board
+#if defined(ESP32)
+#include <WiFi.h>
+#elif defined(ESP8266)
+#include <ESP8266WiFi.h>
+#endif
+
+// // setting awal untuk sensor arus
+// const int sensor_arus_1 = 34;
+// const int sensor_arus_2 = 35;
+// int sensitivity = 66;
+// int adcValue_1 = 0;
+// int adcValue_2 = 0;
+// int offsetVoltage = 2500;
+// double adcVoltage_1 = 0;
+// double adcVoltage_2 = 0;
+// double currentValue_1 = 0;
+// double currentValue_2 = 0;
+
+// // setting variable untuk menstabilkan nilai arus yang naik turun
+// int jumlah_array = 9;
+// double nilai_array[9];
+// double nilai_max = -100;
+// double nilai_min = 100;
+// // int index = 0;
+
+void setup()
+{
+    Serial.begin(115200);
+    // ini adalah inisiasi seting untuk lcd
+    Serial.println("Calibrating... Ensure that no current flows through the sensor at this moment");
+    int zero = sensor_arus.calibrate();
+    Serial.println("Done!");
+    Serial.println("Zero point for this sensor_arus = " + zero);
+}
+
+void loop()
+{
+    float I = sensor_arus.getCurrentDC();
+
+    // Send it to serial
+    Serial.println(String("I = ") + I + " A");
+
+    // Wait a second before the new measurement
+    delay(200);
+}
