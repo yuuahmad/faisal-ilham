@@ -142,7 +142,7 @@ void loop()
     jumlahTonjolan++;
     keadaanTekan = 1;
   }
-  else if (keadaanTekan == LOW)
+  else if (keadaanSensor == LOW)
   {
     keadaanTekan = 0;
   }
@@ -168,21 +168,22 @@ void loop()
   vIN1 = vOUT1 / (R2 / (R1 + R2));
   daya = vIN1 * arus_1;
   lcd.setCursor(0, 0);
-  lcd.print("daya:");
-  lcd.print(daya, 2);
-  lcd.print(" ");
-  lcd.print(valuevoltage);
+  lcd.print("dya:");
+  lcd.print(daya, 1);
+  lcd.print(" krn:");
+  lcd.print(jumlahKendaraan);
+  lcd.print("   ");
 
   // kode sensor voltase kedua
   valuevoltage2 = analogRead(voltageSensor2);
   vOUT2 = (valuevoltage2 * 3.5) / 4095.0;
   vIN2 = vOUT2 / (R2 / (R1 + R2));
   lcd.setCursor(0, 1);
-  lcd.print("tgngn bat= ");
+  lcd.print("tgng bat: ");
   lcd.print(vIN2, 2);
   lcd.print("       ");
 
-  if (vIN1 > 3)
+  if (vIN1 > 32 || arus_1 > 2.8) // nilai voltase dan arus yang aman untuk step down dari generator
   {
     digitalWrite(relay1, HIGH);
     keadaanRelay1 = true;
@@ -193,7 +194,7 @@ void loop()
     keadaanRelay1 = false;
   }
 
-  if (vIN2 > 3)
+  if (vIN2 > 14.3) // ini adalah voltase baterai saat baterai dalam keadaan penuh
   {
     digitalWrite(relay2, HIGH);
     keadaanRelay2 = true;
@@ -215,6 +216,6 @@ void loop()
     Firebase.RTDB.setFloat(&fbdo, "/ABaterai", arus_2);
     Firebase.RTDB.setBool(&fbdo, "/RelayGenerator", keadaanRelay1);
     Firebase.RTDB.setBool(&fbdo, "/RelayBaterai", keadaanRelay2);
-    Firebase.RTDB.setInt(&fbdo, "/JumlahKendaraan", keadaanRelay2);
+    Firebase.RTDB.setInt(&fbdo, "/JumlahKendaraan", jumlahKendaraan);
   }
 }
